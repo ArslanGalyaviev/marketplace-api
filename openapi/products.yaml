@@ -1,0 +1,172 @@
+openapi: 3.0.3
+info:
+  title: Simple Marketplace Products API
+  version: 1.0.0
+  description: 'Учебное API: только пункты 1-6 (товары).'
+paths:
+  /products:
+    post:
+      operationId: create_product
+      summary: Создать товар
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductCreate' }
+      responses:
+        '201':
+          description: Товар создан
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductResponse' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+    get:
+      operationId: list_products
+      summary: Список товаров
+      parameters:
+        - { name: page, in: query, schema: { type: integer, minimum: 0, default: 0 } }
+        - { name: size, in: query, schema: { type: integer, minimum: 1, default: 20 } }
+        - { name: status, in: query, schema: { $ref: '#/components/schemas/ProductStatus' } }
+        - { name: category, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Страница товаров
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductPage' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+  /products/{id}:
+    parameters:
+      - { name: id, in: path, required: true, schema: { type: integer, minimum: 1 } }
+    get:
+      operationId: get_product
+      summary: Получить товар
+      responses:
+        '200':
+          description: Товар
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+    put:
+      operationId: update_product
+      summary: Обновить товар
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ProductUpdate' }
+      responses:
+        '200':
+          description: Изменённый товар
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+    delete:
+      operationId: archive_product
+      summary: Архивировать товар (запись остаётся в БД)
+      responses:
+        '200':
+          description: Архивированный товар
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/XRequestId'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ProductResponse' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '400': { $ref: '#/components/responses/ValidationError' }
+components:
+  schemas:
+    ProductStatus:
+      type: string
+      enum: [ACTIVE, INACTIVE, ARCHIVED]
+    ProductFields:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 255 }
+        description: { type: string, maxLength: 4000, nullable: true }
+        price: { type: number, format: decimal, minimum: 0.01, maximum: 9999999999.99, multipleOf: 0.01 }
+        stock: { type: integer, minimum: 0 }
+        category: { type: string, minLength: 1, maxLength: 100 }
+        status: { $ref: '#/components/schemas/ProductStatus' }
+    ProductCreate:
+      allOf:
+        - { $ref: '#/components/schemas/ProductFields' }
+      required: [name, price, stock, category, status]
+    ProductUpdate:
+      allOf:
+        - { $ref: '#/components/schemas/ProductFields' }
+      required: [name, price, stock, category, status]
+    ProductResponse:
+      allOf:
+        - { $ref: '#/components/schemas/ProductFields' }
+      properties:
+        id: { type: integer }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+      required: [id, name, price, stock, category, status, created_at, updated_at]
+    ProductPage:
+      type: object
+      required: [items, totalElements, page, size]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/ProductResponse' } }
+        totalElements: { type: integer }
+        page: { type: integer }
+        size: { type: integer }
+    ErrorResponse:
+      type: object
+      required: [error_code, message]
+      properties:
+        error_code: { type: string }
+        message: { type: string }
+        details: { type: object, additionalProperties: true, nullable: true }
+  headers:
+    XRequestId:
+      description: Уникальный идентификатор запроса (UUID)
+      schema:
+        type: string
+  responses:
+    ValidationError:
+      description: VALIDATION_ERROR (400)
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: PRODUCT_NOT_FOUND (404)
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/XRequestId'
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+  x-error-codes:
+    PRODUCT_NOT_FOUND: 404
+    PRODUCT_INACTIVE: 409
+    ORDER_NOT_FOUND: 404
+    ORDER_LIMIT_EXCEEDED: 429
+    ORDER_HAS_ACTIVE: 409
+    INVALID_STATE_TRANSITION: 409
+    INSUFFICIENT_STOCK: 409
+    PROMO_CODE_INVALID: 422
+    PROMO_CODE_MIN_AMOUNT: 422
+    ORDER_OWNERSHIP_VIOLATION: 403
+    VALIDATION_ERROR: 400
